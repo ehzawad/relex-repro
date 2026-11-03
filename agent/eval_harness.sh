@@ -12,6 +12,10 @@ S=$!
 until grep -qE "startup complete|Traceback|Error:" $LOG 2>/dev/null; do sleep 5; done
 grep -q "startup complete" $LOG || { echo "vLLM failed: $LOG"; tail -5 $LOG; kill $S; exit 1; }
 cd $HOME/ehz_agent/erpagent
-python run_eval.py --harness opencode --model "$N" --url http://127.0.0.1:$P/v1 --trials 2 --conc 16 --tasks $A/tasks_test.jsonl --outroot $A/evals
-python run_eval.py --harness opencode --model "$N" --url http://127.0.0.1:$P/v1 --trials 3 --conc 16 --tasks $A/tasks_orig37.jsonl --tag orig37 --outroot $A/evals
+if [ -n "$QUICK" ]; then   # sweep mode: test set only, one trial
+  python run_eval.py --harness opencode --model "$N" --url http://127.0.0.1:$P/v1 --trials 1 --conc 16 --tasks $A/tasks_test.jsonl --tag quick --outroot $A/evals
+else
+  python run_eval.py --harness opencode --model "$N" --url http://127.0.0.1:$P/v1 --trials 2 --conc 16 --tasks $A/tasks_test.jsonl --outroot $A/evals
+  python run_eval.py --harness opencode --model "$N" --url http://127.0.0.1:$P/v1 --trials 3 --conc 16 --tasks $A/tasks_orig37.jsonl --tag orig37 --outroot $A/evals
+fi
 kill $S; wait $S 2>/dev/null; echo "done $N"

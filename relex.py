@@ -97,7 +97,12 @@ def _eig(G):
 
 
 def _fit(t, y, kind):
-    """Least-squares fit of y (T,) against t (T,); returns a callable."""
+    """Least-squares fit of y (T,) against t (T,); returns a callable. kind "power": |y| = a t^alpha fitted in log-log
+    over the points with the dominant sign (the coefficient of v_1 has an arbitrary overall sign)."""
+    if kind == "power":
+        sg = 1.0 if y.mean() >= 0 else -1.0; ok = (sg * y) > 0
+        al, la = np.polyfit(np.log(t[ok]), np.log(sg * y[ok]), 1)
+        return lambda T: float(sg * np.exp(la) * T ** al)
     deg = {"linear": 1, "poly2": 2, "poly3": 3}[kind]
     tc = t.mean(); sc = max(float(t.std()), 1.0)
     coef = np.polyfit((t - tc) / sc, y, deg)
