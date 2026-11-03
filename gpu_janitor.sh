@@ -13,11 +13,11 @@ while true; do
   if [ "$cur" != "$prev" ] || [ $((now - last)) -ge 1800 ]; then
     [ "$cur" != "$prev" ] && [ -n "$prev" ] && echo "$(date '+%F %T') holder set changed: [$prev] -> [$cur]"
     # 1. drivers
-    while read -r out tag; do
+    while read -r out tag script; do
       [ -z "$out" ] && continue
       if [ ! -f "$out/DONE" ] && ! alive "watch_run.sh $out"; then
         echo "$(date '+%F %T') restarting watcher for $out ($tag)"
-        (cd $HOME/ehz_agent && TAG=$tag nohup relex/watch_run.sh "$out" >> $D/logs/watch_$tag.log 2>&1 &)
+        (cd $HOME/ehz_agent && TAG=$tag SCRIPT=${script:-relex/train_grpo.py} nohup relex/watch_run.sh "$out" >> $D/logs/watch_$tag.log 2>&1 &)
       fi
     done < <(cat $D/grpo_runs.txt 2>/dev/null)
     if ! alive "eval_worker.sh $D/eval_queue.txt"; then
