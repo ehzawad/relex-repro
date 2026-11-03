@@ -44,11 +44,27 @@ def _score(pair):
 _POOL = None
 
 
-def correct(prompts, completions, gold, **kw):
+def scored(pairs, procs, timeout):
+    """Grade (response, gold) pairs in a process pool with a hard deadline. The authors' grader runs some sympy steps
+    without a timeout and can spin forever on a pathological answer (seen at step 61 of q15_run1); anything not graded
+    by the deadline scores 0 (as a verl reward timeout would) and the pool is killed and rebuilt."""
     global _POOL
+    import concurrent.futures as cf
     if _POOL is None:
-        _POOL = ProcessPoolExecutor(int(os.environ.get("REWARD_PROCS", "24")))
-    return list(_POOL.map(_score, zip(completions, gold), chunksize=8))
+        _POOL = ProcessPoolExecutor(procs)
+    futs = [_POOL.submit(_score, p) for p in pairs]
+    done, late = cf.wait(futs, timeout=timeout)
+    out = [f.result() if f in done and f.exception() is None else 0.0 for f in futs]
+    if late:
+        print(f"[reward] {len(late)} of {len(futs)} gradings exceeded {timeout}s; scored 0, rebuilding pool", flush=True)
+        for pr in list(getattr(_POOL, "_processes", {}).values()):
+            pr.kill()
+        _POOL.shutdown(wait=False, cancel_futures=True); _POOL = None
+    return out
+
+
+def correct(prompts, completions, gold, **kw):
+    return scored(list(zip(completions, gold)), int(os.environ.get("REWARD_PROCS", "24")), float(os.environ.get("REWARD_TIMEOUT", "120")))
 
 
 def _speed_patches():

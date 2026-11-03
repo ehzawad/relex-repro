@@ -12,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE / "third_party"))
+sys.path.insert(0, str(HERE / "third_party")); sys.path.insert(0, str(HERE))
 
 PROMPT = ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n{input}\nPlease reason step by step, "
           "and put your final answer within \\boxed{}.<|im_end|>\n<|im_start|>assistant\n")
@@ -80,8 +80,9 @@ def main():
         res, lines = {}, []
         for name, rows in data.items():
             outs = llm.generate([PROMPT.replace("{input}", r["q"]) for r in rows], sp, use_tqdm=False)
-            pairs = [(o.text, r["gold"]) for r, out in zip(rows, outs) for o in out.outputs]
-            ok = list(pool.map(_score, pairs, chunksize=16))
+            pairs = [(o.text, str(r["gold"])) for r, out in zip(rows, outs) for o in out.outputs]
+            from train_grpo import scored                              # same deadline-guarded grading as training
+            ok = [bool(x) for x in scored(pairs, int(os.environ.get("REWARD_PROCS", "12")), 600)]
             k = SAMPLING[a.bench]["n"]
             res[name] = round(100 * sum(ok) / len(ok), 2)
             fin = [o.finish_reason for out in outs for o in out.outputs]

@@ -55,6 +55,7 @@ def main():
     ap.add_argument("--dense", type=int, default=30); ap.add_argument("--sparse", type=int, default=10)
     ap.add_argument("--save-every", type=int, default=5); ap.add_argument("--vllm-mem", type=float, default=0.35)
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--vllm-server", default="", help="host:port of a `trl vllm-serve` (server mode); default colocate")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True); (out / "args.json").write_text(json.dumps(vars(a), indent=1))
     rows = [json.loads(l) for l in open(a.tasks)]
@@ -71,7 +72,9 @@ def main():
         max_completion_length=a.max_completion, max_tool_calling_iterations=a.max_turns, temperature=1.0, top_p=1.0, top_k=0,
         beta=a.beta, epsilon=0.2, loss_type="dapo", scale_rewards="group", mask_truncated_completions=False,
         reward_weights=[1.0, 0.0],
-        use_vllm=True, vllm_mode="colocate", vllm_gpu_memory_utilization=a.vllm_mem, vllm_max_model_length=a.max_completion + 2048,
+        use_vllm=True, vllm_mode="server" if a.vllm_server else "colocate", vllm_gpu_memory_utilization=a.vllm_mem,
+        vllm_max_model_length=a.max_completion + 2048,
+        **({"vllm_server_host": a.vllm_server.split(":")[0], "vllm_server_port": int(a.vllm_server.split(":")[1])} if a.vllm_server else {}),
         vllm_importance_sampling_correction=False,
         model_init_kwargs={"dtype": torch.float32}, bf16=True, gradient_checkpointing=True,
         logging_steps=1, save_strategy="no" if a.smoke else "steps", save_steps=a.save_every, save_total_limit=2,
