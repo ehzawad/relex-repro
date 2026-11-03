@@ -79,8 +79,11 @@ def main():
     for k in todo:
         d = outdir / k; d.mkdir(parents=True, exist_ok=True)
         sd = out[k]
-        if "lm_head.weight" in base and "lm_head.weight" not in sd:
+        if "lm_head.weight" in base and "lm_head.weight" not in sd and "model.embed_tokens.weight" in sd:
             sd["lm_head.weight"] = sd["model.embed_tokens.weight"].clone()
+        for n in base:                       # untracked base tensors (e.g. Qwen3.5's mtp.* head) are copied unchanged
+            if n not in sd:
+                sd[n] = base[n].clone()
         save_file({n: v.contiguous() for n, v in sd.items()}, str(d / "model.safetensors"), metadata={"format": "pt"})
         for f in Path(bdir).iterdir():
             if f.suffix in (".json", ".txt", ".jinja") and f.name != "model.safetensors.index.json":
