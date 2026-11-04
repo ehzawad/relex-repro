@@ -64,7 +64,7 @@ def scored(pairs, procs, timeout):
 
 
 def correct(prompts, completions, gold, **kw):
-    return scored(list(zip(completions, gold)), int(os.environ.get("REWARD_PROCS", "24")), float(os.environ.get("REWARD_TIMEOUT", "120")))
+    return scored(list(zip(completions, gold)), int(os.environ.get("REWARD_PROCS", "12")), float(os.environ.get("REWARD_TIMEOUT", "120")))
 
 
 def _speed_patches():
