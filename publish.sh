@@ -1,8 +1,10 @@
 #!/bin/bash
-# Publish the relex/ subtree of the monorepo (with its history) to the private repo ehzawad/relex-repro.
-#   relex/publish.sh            (run from anywhere; commits must already be made in the monorepo)
+# Publish the relex/ subtree of the monorepo, with its history, to the private repo ehzawad/relex-repro.
+# git subtree is not installed on cluster, so: fresh clone of the monorepo -> filter-branch --subdirectory-filter relex
+# (deterministic, so re-publishing is a fast-forward) -> push to relex-repro main.
 set -e
-cd $HOME/ehz_agent
-git subtree split --prefix=relex -b relex-publish >/dev/null
-git push -q https://github.com/ehzawad/relex-repro.git relex-publish:main
-git log -1 --format="published %h %s" relex-publish
+W=$DATA/relex/publish_clone
+rm -rf $W; git clone -q --no-local --branch main $HOME/ehz_agent $W
+cd $W; FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --subdirectory-filter relex -- main >/dev/null 2>&1
+git push -q https://github.com/ehzawad/relex-repro.git main:main
+git log -1 --format="published %h %s ($(git rev-list --count main) commits)"
