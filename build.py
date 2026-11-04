@@ -34,6 +34,11 @@ def weights(spec, G, steps):
         return twopoint_w(steps, spec["t0"], spec["t1"], spec["target"])
     if m == "expo":
         return expo_w(steps, spec["t1"], spec["alpha"])
+    if m == "relex_normmatch":
+        # RELEX direction, rescaled per tensor to the norm of a real stored step (council control: magnitude vs direction)
+        w = relex_w(G, steps, spec["obs"], spec["target"], spec.get("rank", 1), spec.get("fit", "linear"))
+        j = steps.index(spec["match_step"]); ww = float(w @ G @ w)
+        return w * ((float(G[j, j]) / ww) ** 0.5 if ww > 0 else 0.0)
     if m == "rlvr":
         return onehot_w(steps, spec["step"])
     if m == "base":

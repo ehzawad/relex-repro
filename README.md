@@ -6,20 +6,20 @@ tensor's trajectory, fits its coefficient linearly in the step, and extrapolates
 
 All code here is my own, except the authors' answer grader (`third_party/`, MIT), which I reuse so scores are
 comparable. `PLAN.md` holds the pre-registered predictions and a timestamped log of every result. Status:
-**in progress**; the own GRPO run finishes on 2026-11-04.
+**in progress**; the own GRPO run finishes on 2026-11-04. Intervals are problem-paired bootstrap and unadjusted for the many exploratory comparisons; pre-registered predictions are scored in PLAN.md. Reviewed by the Codex Council 2026-11-04 (wording corrected per its audit).
 
 ## Findings so far
 
 | # | Finding | Evidence |
 |---|---|---|
-| 1 | My implementation reproduces the authors' released RELEX checkpoint exactly. | weight cosine 1.0000, rel. L2 0.18% |
+| 1 | My implementation closely matches the authors' released RELEX checkpoints (1.5B and 4B). | 1.5B: per-tensor cosine > 0.99, rel. L2 0.18%; 4B: rel. L2 0.075% |
 | 2 | Headline MATH numbers reproduce on the released checkpoints. | Qwen2.5-Math-1.5B base / RLVR-500 / RELEX: 46.9 / 71.8 / 71.7 (paper 48.2 / 71.5 / 71.6); Qwen3-4B base / RELEX 64.8 / 84.8 (paper 64.0 / 85.6) |
-| 3 | The 1.5B "RELEX step 500" is the line evaluated at checkpoint index **1000**, twice the RLVR run it is compared with. At the matched index 500 RELEX is 2.0 points below RLVR (95% CI [-3.0, -1.1]), and rank-10 and two-point baselines beat it. | authors' code scales the target by 2 for this model only; the full Table 3 row matches under label -> 2x index |
-| 4 | The paper's weight-space evidence (rank-1 explained variance ~0.8, R^2 ~0.96) is what a driftless random walk gives, and what bf16 checkpoint rounding produces. | random-walk null 0.81 / 0.96; released bf16 trajectory 0.82 / 0.96 |
-| 5 | In fp32 the trajectory really is near rank-1 (0.96-0.98), but its coefficient is curved, not linear (R^2 0.92 over 60 steps). | own GRPO run, same run rounded to bf16 gives 0.82 / 0.96 |
-| 6 | Extrapolating from fp32 deltas beats extrapolating from bf16 checkpoints by 2-3 MATH points. | +3.04 [+2.04, +4.02] at step 500 from a 50-step window |
-| 7 | On the own math run RELEX tracks real training at moderate horizons (step 200: 69.64 vs real 69.78); rank-1 beats per-weight extrapolation only at long horizons in fp32. | window sweeps 50-125 |
-| 8 | Agentic RL: GRPO lifts Qwen3.5-2B from 59.5% to 94.5% on unseen ERP databases (opencode harness), but extrapolating the run collapses the agent (11% at 4x the window; unsafe beyond ~1.2x); a power-law coefficient or a longer window does not fix it. | magnitude saturates: real delta grows 1.5x from step 25 to 100, linear extrapolation predicts 4x |
+| 3 | The 1.5B "RELEX step 500" is the line evaluated at fit coordinate **1000**, twice the released branch-label coordinate of the RLVR checkpoint it is compared with (the authors' code scales the target by 2 for this model only; how branches map to optimizer steps is not documented). At the matched index 500 RELEX is 2.0 points below RLVR (95% CI [-3.0, -1.1]), and rank-10 and two-point baselines beat it. | authors' code scales the target by 2 for this model only; the full Table 3 row matches under label -> 2x index |
+| 4 | Two of the paper's weight-space summaries (median rank-1 explained variance ~0.82, median R^2 ~0.96 over 75 steps) are compatible with a driftless random-walk null (0.811 / 0.960 expected), so on their own they do not establish structure. This does not refute the paper's separate reconstruction evidence. | random-walk null 0.81 / 0.96; released bf16 trajectory 0.82 / 0.96 |
+| 5 | In my run (one seed), the fp32 trajectory is strongly concentrated in rank one (median EV 0.958 over 75 steps, 0.942 over 125) while its coefficient fits a line less well (median R^2 0.893 / 0.869); rounding the same trajectory to bf16 gives 0.816 / 0.955. Pre-registered P5's R^2 > 0.95 fails. | own GRPO run, same run rounded to bf16 gives 0.82 / 0.96 |
+| 6 | Storage precision matters, but by method and horizon: fp32 vs bf16-rounded deltas of the same run give RELEX +3.04 [+2.04, +4.02] (50 -> 500), +1.70 (75 -> 500), +0.36 (75 -> 1000), and some bf16 baselines beat their fp32 versions at 1000. | one seed; unadjusted intervals |
+| 7 | On my run RELEX lands close to real training at moderate horizons (step 200: 69.64 vs 69.78; a small difference is not proof of equivalence). In the examined comparisons rank-1 beat per-weight least squares at 1000 but not at 500. On Qwen3-4B (released, bf16) RELEX beat raw least squares at 500 (84.8 vs 81.7, raw truncates 15% of answers). | exploratory sweep; real step 500 pending |
+| 8 | Agentic RL: GRPO lifts Qwen3.5-2B from 59.5% to 94.5% on unseen ERP databases (opencode harness), but extrapolating the run collapses the agent (11% at 4x the window; the quick 1-trial probes degrade by 1.6x and collapse by 2-4x; 25 -> 30 roughly ties real step 30 under the full protocol); a power-law coefficient or a longer window does not fix it in the quick probes. Replicated on a second seed (RELEX 25 -> 100: 4.5% vs real 94.2%). | magnitude saturates: real delta grows 1.5x from step 25 to 100, linear extrapolation predicts 4x |
 
 ## Layout
 
