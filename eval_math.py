@@ -8,7 +8,6 @@ Writes <out>/<model name>/<bench>.jsonl (one line per sample) and <out>/<model n
 Skips a (model, bench) that already has its .json.
 """
 import argparse, gc, json, os, sys, time
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -72,7 +71,6 @@ def main():
         pk, ak = keys(name, ds.column_names)
         rows = [{"q": r[pk], "gold": gold_of(name, r[ak])} for r in ds]
         data[name] = rows[: a.limit] if a.limit else rows
-    pool = ProcessPoolExecutor(int(os.environ.get("REWARD_PROCS", "12")))
     for m in [x for x in a.models.split(",") if x]:
         tag = Path(m).name if Path(m).exists() else m.replace("/", "__")
         od = Path(a.out) / tag; od.mkdir(parents=True, exist_ok=True)

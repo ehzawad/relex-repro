@@ -50,10 +50,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--grams", required=True); ap.add_argument("--spec", required=True); ap.add_argument("--outdir", required=True)
     ap.add_argument("--round-bf16", action="store_true", help="use bf16-rounded checkpoint deltas (must match the grams)")
+    ap.add_argument("--only", action="append", help="build only this spec name (repeatable): bounds host memory to one output")
     a = ap.parse_args()
     gd = torch.load(a.grams); steps, grams = gd["steps"], gd["grams"]
     assert bool(gd.get("round_bf16")) == a.round_bf16, "grams and --round-bf16 disagree"
     st = Store(gd["store"]); spec = json.loads(Path(a.spec).read_text()); outdir = Path(a.outdir)
+    if a.only:
+        missing = set(a.only) - set(spec)
+        if missing:
+            ap.error(f"unknown spec names: {sorted(missing)}")
+        spec = {k: spec[k] for k in a.only}
     todo = {k: v for k, v in spec.items() if not (outdir / k / "model.safetensors").exists()}
     print(f"{len(todo)} of {len(spec)} checkpoints to build", flush=True)
     if not todo:

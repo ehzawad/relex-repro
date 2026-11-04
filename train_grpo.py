@@ -31,17 +31,23 @@ PROMPT = ("<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_star
           "and put your final answer within \\boxed{}.<|im_end|>\n<|im_start|>assistant\n")
 
 
-def _score(pair):
-    resp, gold = pair
-    from utils import extract_answer_math
-    from grader import math_equal
-    try:
-        return float(bool(math_equal(extract_answer_math(resp), gold, timeout=True)))
-    except Exception:
-        return 0.0
-
+from grade_worker import _score  # noqa: E402  (torch-free; see grade_worker.py)
 
 _POOL = None
+
+
+def _pool(procs):
+    """Grading pool started from a small forkserver that preloads only grade_worker (no torch/CUDA/vLLM state).
+    RELEX_POOL=fork restores the old behaviour (fork of the full trainer process)."""
+    import multiprocessing
+    if os.environ.get("RELEX_POOL", "forkserver") == "fork":
+        return ProcessPoolExecutor(procs)
+    import importlib.util
+    # Workers re-run the parent's __main__ module before unpickling a task (multiprocessing "prepare"). Point
+    # __main__.__spec__ at grade_worker so they import only that module, not this torch/TRL/vLLM script.
+    sys.modules["__main__"].__spec__ = importlib.util.find_spec("grade_worker")
+    ctx = multiprocessing.get_context("forkserver"); ctx.set_forkserver_preload(["grade_worker"])
+    return ProcessPoolExecutor(procs, mp_context=ctx)
 
 
 def scored(pairs, procs, timeout):
@@ -51,7 +57,7 @@ def scored(pairs, procs, timeout):
     global _POOL
     import concurrent.futures as cf
     if _POOL is None:
-        _POOL = ProcessPoolExecutor(procs)
+        _POOL = _pool(procs)
     futs = [_POOL.submit(_score, p) for p in pairs]
     done, late = cf.wait(futs, timeout=timeout)
     out = [f.result() if f in done and f.exception() is None else 0.0 for f in futs]
@@ -64,7 +70,7 @@ def scored(pairs, procs, timeout):
 
 
 def correct(prompts, completions, gold, **kw):
-    return scored(list(zip(completions, gold)), int(os.environ.get("REWARD_PROCS", "12")), float(os.environ.get("REWARD_TIMEOUT", "120")))
+    return scored(list(zip(completions, gold)), int(os.environ.get("REWARD_PROCS", "8")), float(os.environ.get("REWARD_TIMEOUT", "120")))
 
 
 def _speed_patches():
@@ -139,12 +145,24 @@ class Dump(TrainerCallback):
         s = state.global_step
         if not (s <= self.dense or s % self.sparse == 0):
             return
-        m = self.trainer.accelerator.unwrap_model(self.trainer.model)
+        self._join()                     # finish (and surface errors of) the previous write BEFORE building the next delta,
+        m = self.trainer.accelerator.unwrap_model(self.trainer.model)   # so at most one ~6 GB host copy exists at a time
         d = {n: (p.detach().float() - self.base[n].float()).to("cpu", non_blocking=True) for n, p in m.named_parameters()}
         torch.cuda.synchronize()
+        self.err = None
+        self.th = threading.Thread(target=self._write, args=(s, d)); self.th.start()
+
+    def _write(self, s, d):
+        try:
+            self.store.write(s, d)
+        except BaseException as e:      # re-raised on the training thread by _join()
+            self.err = e
+
+    def _join(self):
         if self.th is not None:
-            self.th.join()
-        self.th = threading.Thread(target=self.store.write, args=(s, d)); self.th.start()
+            self.th.join(); self.th = None
+        if getattr(self, "err", None) is not None:
+            raise RuntimeError("delta write failed") from self.err
 
     def on_log(self, args, state, control, logs=None, **kw):
         if state.is_world_process_zero and logs:
@@ -152,8 +170,7 @@ class Dump(TrainerCallback):
                 f.write(json.dumps({"step": state.global_step, "time": time.time(), **logs}) + "\n")
 
     def on_train_end(self, args, state, control, **kw):
-        if self.th is not None:
-            self.th.join()
+        self._join()
 
 
 def main():
