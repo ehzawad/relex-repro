@@ -1,0 +1,7 @@
+{
+ "TianHongZXY/MATH": 0.02,
+ "TianHongZXY/MATH:truncated%": 0.52,
+ "TianHongZXY/MATH:mean_tokens": 441.0,
+ "_seconds": 82,
+ "_model": "$DATA/relex/released/q15/ckpts/poly3_c75_t1000"
+}

@@ -1,0 +1,19 @@
+{
+ "TianHongZXY/AIME2025": 7.92,
+ "TianHongZXY/AIME2025:truncated%": 7.08,
+ "TianHongZXY/AIME2025:mean_tokens": 1242.7,
+ "MathArena/aime_2026": 6.67,
+ "MathArena/aime_2026:truncated%": 13.33,
+ "MathArena/aime_2026:mean_tokens": 1390.1,
+ "MathArena/hmmt_feb_2025": 0.42,
+ "MathArena/hmmt_feb_2025:truncated%": 11.67,
+ "MathArena/hmmt_feb_2025:mean_tokens": 1229.6,
+ "TianHongZXY/amc23": 52.5,
+ "TianHongZXY/amc23:truncated%": 3.44,
+ "TianHongZXY/amc23:mean_tokens": 886.2,
+ "zwhe99/simplerl-OlympiadBench": 31.54,
+ "zwhe99/simplerl-OlympiadBench:truncated%": 6.07,
+ "zwhe99/simplerl-OlympiadBench:mean_tokens": 944.6,
+ "_seconds": 233,
+ "_model": "$DATA/relex/released/q15/ckpts/rlvr_500"
+}

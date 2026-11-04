@@ -1,0 +1,7 @@
+{
+ "TianHongZXY/MATH": 70.76,
+ "TianHongZXY/MATH:truncated%": 3.4,
+ "TianHongZXY/MATH:mean_tokens": 666.0,
+ "_seconds": 115,
+ "_model": "$DATA/relex/released/q15/ckpts/rank10_c75_t500"
+}

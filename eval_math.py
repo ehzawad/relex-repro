@@ -22,7 +22,11 @@ BENCH = {
             ("TianHongZXY/amc23", "test"), ("zwhe99/simplerl-OlympiadBench", "test")],
 }
 SAMPLING = {"math": dict(n=1, temperature=0.0, top_p=1.0, top_k=-1, max_tokens=4096),
-            "ood": dict(n=8, temperature=0.7, top_p=0.8, top_k=-1, max_tokens=4096)}
+            "ood": dict(n=8, temperature=0.7, top_p=0.8, top_k=-1, max_tokens=4096),
+            # Qwen3 settings from the authors' run_qwen3-*-base.sh: sampled MATH, 16K tokens
+            "math16k": dict(n=1, temperature=0.7, top_p=0.8, top_k=-1, max_tokens=16384),
+            "ood16k": dict(n=8, temperature=0.7, top_p=0.8, top_k=-1, max_tokens=16384)}
+BENCH["math16k"], BENCH["ood16k"] = BENCH["math"], BENCH["ood"]
 
 
 def keys(name, cols):
@@ -56,7 +60,7 @@ def _score(pair):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--models", required=True); ap.add_argument("--bench", default="math", choices=list(BENCH))
+    ap.add_argument("--models", required=True); ap.add_argument("--bench", default="math", choices=["math", "ood", "math16k", "ood16k"])
     ap.add_argument("--out", default="$DATA/relex/evals"); ap.add_argument("--limit", type=int)
     ap.add_argument("--gpu-mem", type=float, default=0.85)
     a = ap.parse_args()
@@ -75,7 +79,7 @@ def main():
         if (od / f"{a.bench}.json").exists():
             print("skip", tag, a.bench); continue
         t0 = time.time()
-        llm = LLM(m, dtype="bfloat16", gpu_memory_utilization=a.gpu_mem, max_model_len=4096, seed=0)
+        llm = LLM(m, dtype="bfloat16", gpu_memory_utilization=a.gpu_mem, max_model_len=20480 if "16k" in a.bench else 4096, seed=0)
         sp = SamplingParams(seed=0, **SAMPLING[a.bench])
         res, lines = {}, []
         for name, rows in data.items():
