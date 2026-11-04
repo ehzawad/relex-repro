@@ -1,0 +1,19 @@
+{
+ "TianHongZXY/AIME2025": 22.92,
+ "TianHongZXY/AIME2025:truncated%": 54.17,
+ "TianHongZXY/AIME2025:mean_tokens": 11448.8,
+ "MathArena/aime_2026": 22.08,
+ "MathArena/aime_2026:truncated%": 57.92,
+ "MathArena/aime_2026:mean_tokens": 12270.4,
+ "MathArena/hmmt_feb_2025": 12.08,
+ "MathArena/hmmt_feb_2025:truncated%": 61.67,
+ "MathArena/hmmt_feb_2025:mean_tokens": 12511.2,
+ "TianHongZXY/amc23": 63.12,
+ "TianHongZXY/amc23:truncated%": 27.5,
+ "TianHongZXY/amc23:mean_tokens": 7269.4,
+ "zwhe99/simplerl-OlympiadBench": 46.28,
+ "zwhe99/simplerl-OlympiadBench:truncated%": 30.06,
+ "zwhe99/simplerl-OlympiadBench:mean_tokens": 7729.1,
+ "_seconds": 9052,
+ "_model": "relex-rlvr/RLVR-Qwen3-4B-Base"
+}
