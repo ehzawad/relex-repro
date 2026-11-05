@@ -1,8 +1,9 @@
 """Build relex/report/relex_findings.pdf: the findings report of the RELEX (arXiv 2605.21468) reproduction.
 
 Every number comes from relex/PLAN.md (cited by line), relex/README.md, relex/results/ (read here directly from the JSON
-files) or the data directory's logs/final_paired.txt, logs/ood_paired.txt and logs/normood.log (parsed here). Scores are read from the result files rather than
-typed, so a table cannot drift from its source; intervals that exist only in PLAN.md are copied verbatim.
+files and from results/final_paired.txt, final_paired_run3.txt and ood_paired.txt, parsed here) or the data directory's
+logs/normood.log and logs/run3norm.log (global norm ratios, parsed here). Scores are read from the result files rather
+than typed, so a table cannot drift from its source; intervals that exist only in PLAN.md are copied verbatim.
 
   python relex/report/build_report.py      (run on a compute node; needs reportlab + matplotlib)
 """
@@ -30,9 +31,11 @@ RES = RELEX / "results"
 FIGS = HERE / "figs"
 OUT = HERE / "relex_findings.pdf"
 LOGS = Path("$DATA/relex/logs")
-FINAL_PAIRED = LOGS / "final_paired.txt"
-OOD_PAIRED = LOGS / "ood_paired.txt"
+FINAL_PAIRED = RES / "final_paired.txt"          # seed 0, MATH (copied from the data directory by sync_results.sh)
+OOD_PAIRED = RES / "ood_paired.txt"              # seed 0, OOD
+FINAL_PAIRED3 = RES / "final_paired_run3.txt"    # seed 1 (q15_run3), MATH and OOD
 NORM_LOG = LOGS / "normood.log"
+NORM_LOG3 = LOGS / "run3norm.log"
 FIGS.mkdir(parents=True, exist_ok=True)
 
 # ----------------------------------------------------------------------------------------------------------- fonts
@@ -111,12 +114,15 @@ O = lambda n, f="math.json": math("q15_own", n, f)               # noqa: E731
 Q = lambda n, f="math16k.json": math("q4b_released", n, f)       # noqa: E731
 
 # paired comparisons (parsed, not typed): MATH from final_paired.txt, OOD from ood_paired.txt (relex/ood_paired.py)
-def parse_pairs(path):
+def parse_pairs(path, kind=None):
+    """kind 'n' keeps MATH lines '(n=5000)', 'benchmarks' keeps clustered OOD lines; None keeps every line."""
     out = {}
     for line in path.read_text().splitlines():
-        m = re.match(r"(\S+) - (\S+): (\S+)\s+95% CI \[(\S+), (\S+)\]", line)
-        if m:
-            out[(m.group(1), m.group(2))] = (m.group(3), m.group(4), m.group(5))
+        m = re.match(r"(\S+) - (\S+): (\S+)\s+95% CI \[(\S+), (\S+)\]\s+\((n|benchmarks)=", line)
+        if m and kind in (None, m.group(6)):
+            key = (m.group(1), m.group(2))
+            assert key not in out, (path, key)
+            out[key] = (m.group(3), m.group(4), m.group(5))
     return out
 
 
@@ -130,8 +136,14 @@ OOD_N = sorted(set(re.findall(r"problems=(\d+)", OOD_PAIRED.read_text())))
 assert len(OOD_N) == 1, OOD_N
 OOD_N = OOD_N[0]
 # global norm ratio ||RELEX c75->500 fp32|| / ||real step-500 delta|| (own/q15_run1/normratio.py, logged in normood.log)
-NORM_RATIO = float(re.search(r"global \|\|RELEX c75->500\|\| / \|\|real 500\|\| = ([0-9.]+)",
-                             NORM_LOG.read_text()).group(1))
+NORM_RE = r"global \|\|RELEX c75->500\|\| / \|\|real 500\|\| = ([0-9.]+)"
+NORM_RATIO = float(re.search(NORM_RE, NORM_LOG.read_text()).group(1))
+# seed 1 (q15_run3): MATH and clustered OOD pairs share one file; the same pair can appear once per kind
+FPP3 = parse_pairs(FINAL_PAIRED3, "n")
+OPP3 = parse_pairs(FINAL_PAIRED3, "benchmarks")
+assert len(FPP3) == 8 and len(OPP3) == 7, (FPP3, OPP3)
+assert len(re.findall(r"\((?:n|benchmarks)=", FINAL_PAIRED3.read_text())) == 15
+NORM_RATIO3 = float(re.search(NORM_RE, NORM_LOG3.read_text(errors="replace")).group(1))
 
 
 def ci(v):
@@ -147,10 +159,27 @@ def opci(name):
     return ci(OP[name])
 
 
-def ood_mean(name):
+def ood_mean(name, group="q15_own"):
     """Macro mean over the five OOD benchmarks of avg@8 (as relex/ood_paired.py)."""
-    d = ev("q15_own", name, "ood.json")
+    d = ev(group, name, "ood.json")
     return sum(d[k] for k, _ in OOD_KEYS) / len(OOD_KEYS)
+
+
+# seed 1 (q15_run3): models are named own3_* and live in results/evals/q15_own3/
+O3 = lambda n: math("q15_own3", n)                     # noqa: E731
+OM3 = lambda n: ood_mean(n, "q15_own3")                # noqa: E731
+
+
+def has(group, name, file):
+    return (RES / "evals" / group / name / file).exists()
+
+
+def fpci3(name, ref="own3_rlvr_500"):
+    return ci(FPP3[(name, ref)])
+
+
+def opci3(name):
+    return ci(OPP3[(name, "own3_rlvr_500")])
 
 
 # Weight-match checks
@@ -324,31 +353,44 @@ def fig_horizon():
 
 
 def fig_math_ood():
-    """Own run: MATH (left) and OOD macro mean (right) along the RELEX c75 fp32 line vs real checkpoints."""
+    """Own runs: MATH (left) and OOD macro mean (right) along the RELEX c75 fp32 line vs real checkpoints.
+    Seed 0 filled markers and solid lines, seed 1 (q15_run3) hollow markers and dashed lines."""
     tx = [100, 200, 300, 400, 500, 1000]
     real_m = [25, 50, 75, 100, 125, 150, 175, 200, 250, 275, 300, 400, 450, 475, 500]
-    real_o = [s for s in real_m if (RES / "evals" / "q15_own" / f"own_rlvr_{s}" / "ood.json").exists()]
-    panels = [("MATH-5000 accuracy (%)", lambda n: O(n), real_m),
-              ("OOD macro mean, avg@8 (%)", ood_mean, real_o)]
-    fig_, axs = plt.subplots(1, 2, figsize=(6.6, 2.9))
-    for ax, (lab, f, rx) in zip(axs, panels):
+    real_o = [s for s in real_m if has("q15_own", f"own_rlvr_{s}", "ood.json")]
+    real3 = sorted(int(p.name.split("_")[-1]) for p in (RES / "evals" / "q15_own3").glob("own3_rlvr_*"))
+    tx3 = [t for t in tx if has("q15_own3", f"own3_relex_c75_t{t}_fp32", "math.json")]
+    real3_o = [s for s in real3 if has("q15_own3", f"own3_rlvr_{s}", "ood.json")]
+    tx3_o = [t for t in tx3 if has("q15_own3", f"own3_relex_c75_t{t}_fp32", "ood.json")]
+    panels = [("MATH-5000 accuracy (%)", lambda n: O(n), O3, real_m, real3, tx3),
+              ("OOD macro mean, avg@8 (%)", ood_mean, OM3, real_o, real3_o, tx3_o)]
+    hollow = dict(mfc="white", mew=1.1)
+    fig_, axs = plt.subplots(1, 2, figsize=(6.6, 3.2))
+    for ax, (lab, f, f3_, rx, rx3, t3) in zip(axs, panels):
         ry = [f(f"own_rlvr_{s}") for s in rx]
         y = [f(f"own_relex_c75_t{s}_fp32") for s in tx]
         ax.axvspan(0, 75, color="#e4e3df", alpha=0.6, lw=0)
-        ax.plot(rx, ry, "-o", color=C_REAL, ms=4, label="real GRPO checkpoint (own run, seed 0)")
-        ax.plot(tx[:5], y[:5], "-o", color=C_FP32, ms=4, label="RELEX c75, fp32, target T")
+        ax.plot(rx, ry, "-o", color=C_REAL, ms=4, label="real GRPO checkpoint, seed 0")
+        ax.plot(tx[:5], y[:5], "-o", color=C_FP32, ms=4, label="RELEX c75, fp32, target T, seed 0")
         ax.plot(tx[4:], y[4:], ":", color=C_FP32, lw=1.2)
         ax.plot([1000], [y[5]], "o", color=C_FP32, ms=4)
         ax.plot([500], [f("own_relexnorm_c75_t500_fp32")], "*", color=C_NORM, ms=9, ls="none",
-                label="RELEX c75 direction at real step-500 norm (T = 500)")
+                label="RELEX c75 direction at real step-500 norm, seed 0")
+        ax.plot(rx3, [f3_(f"own3_rlvr_{s}") for s in rx3], "--o", color=C_REAL, ms=4, lw=1.2, mec=C_REAL, **hollow,
+                label="real GRPO checkpoint, seed 1")
+        ax.plot(t3, [f3_(f"own3_relex_c75_t{t}_fp32") for t in t3], "--o", color=C_FP32, ms=4, lw=1.2, mec=C_FP32,
+                **hollow, label="RELEX c75, fp32, target T, seed 1")
+        ax.plot([500], [f3_("own3_relexnorm_c75_t500_fp32")], "*", color=C_NORM, ms=9, mec=C_NORM, ls="none",
+                **hollow, label="RELEX c75 direction at real step-500 norm, seed 1")
         ax.set_xlim(0, 1030)
         ax.set_xticks([0, 250, 500, 750, 1000])
         ax.set_xlabel("optimizer step (real) / target T (RELEX)")
         ax.set_ylabel(lab)
     axs[0].set_ylim(65.5, 73.5)
     axs[1].set_ylim(15.0, 23.0)
+    # legend fills column by column: seed 0 entries in the left column, seed 1 in the right
     fig_.legend(*axs[0].get_legend_handles_labels(), loc="lower center", ncol=2, bbox_to_anchor=(0.5, 0.0))
-    fig_.tight_layout(rect=(0, 0.14, 1, 1))
+    fig_.tight_layout(rect=(0, 0.2, 1, 1))
     p = FIGS / "fig5_math_ood.png"
     fig_.savefig(p)
     plt.close(fig_)
@@ -431,16 +473,16 @@ def build():
     S.append(P("RELEX, a critical reproduction: findings", "title"))
     S.append(P("Reproduction of Wei, Zhu, Chen, Huang, Huang, Meng, “You Only Need Minimal RLVR Training: Extrapolating "
                "LLMs via Rank-1 Trajectories” (arXiv 2605.21468, May 2026). Results as logged in relex/PLAN.md up to the "
-               f"2026-11-04 10:23 EST entry. One own math seed; a second seed is running. Built {today}.", "sub"))
+               f"2026-11-05 14:39 EST entry. Two own math seeds (0 and 1), both complete. Built {today}.", "sub"))
     S.append(H1("1. Summary"))
     S.append(P("<b>What was reproduced.</b> (a) The authors' released Qwen2.5-Math-1.5B trajectory (500 bf16 branch "
                "checkpoints) and Qwen3-4B-Base trajectory (steps 1-75 and the main branch), re-scored with the authors' "
                "prompt, decoding and grader. (b) RELEX and its baselines, re-implemented independently and checked "
-               "weight-for-weight against the released RELEX checkpoints. (c) One own 500-step GRPO run of "
-               "Qwen2.5-Math-1.5B that stores fp32 deltas, analysed in fp32 and after rounding to bf16. (d) A new "
+               "weight-for-weight against the released RELEX checkpoints. (c) Two own 500-step GRPO runs of "
+               "Qwen2.5-Math-1.5B (seeds 0 and 1) that store fp32 deltas. (d) A new "
                "agentic test: 100 steps of multi-turn tool-use GRPO of Qwen3.5-2B on a synthetic ERP database."))
     S.append(P("<b>Headline findings</b> (95% intervals are problem-paired bootstrap, unadjusted for multiple comparisons "
-               "except pre-registered P5 and P10):", "body"))
+               "except pre-registered P5, P10 and P10b):", "body"))
     a100, a100s2, abase = ag("agent_rlvr_100")["pass"], ag("agent2_rlvr_100")["pass"], ag("qwen35_2b_base")["pass"]
     anorm_frac = 100 * (ag("agent_relexnorm_c25_t100")["pass"] - abase) / (a100 - abase)
     S.append(numbered([
@@ -460,17 +502,20 @@ def build():
         f"over 75 steps) but its coefficient is curved (median R² {f3(ws('own_q15_run1_gram_stats_s75.json','grams_fp32',75)[1])}, "
         f"below the pre-registered 0.95). Rounding the same run to bf16 gives {f3(ws('own_q15_run1_gram_stats_s75.json','grams_bf16',75)[0])} / "
         f"{f3(ws('own_q15_run1_gram_stats_s75.json','grams_bf16',75)[1])}. [weight_stats/own_q15_run1_gram_stats_s75.json; PLAN L110]",
-        f"Own run at the matched horizon (real step 500 = {f2(O('own_rlvr_500'))}): RELEX c75→500 from fp32 deltas "
+        f"Seed 0 at the matched horizon (real step 500 = {f2(O('own_rlvr_500'))}): RELEX c75→500 from fp32 deltas "
         f"{fpci('own_relex_c75_t500_fp32')}; from bf16-rounded deltas {fpci('own_relex_c75_t500_bf16')}. Simpler "
         f"extrapolations do as well: raw per-weight least squares {fpci('own_rawls_c75_t500_fp32')}, two-point (25,75) "
-        f"{fpci('own_twopoint25_c75_t500_fp32')}. [final_paired.txt; PLAN L116]",
-        f"The own-run MATH gain comes with a larger step, not a better direction. The plain RELEX c75→500 delta has "
-        f"{NORM_RATIO:.2f}x the norm of the real step-500 delta; rescaling its direction to the real per-tensor norm "
-        f"gives {f2(O('own_relexnorm_c75_t500_fp32'))}, {fpci('own_relexnorm_c75_t500_fp32')} versus real 500 "
-        f"(pre-registered P10 fails). On five OOD benchmarks (macro mean of avg@8) RELEX fp32 minus real 500 is "
-        f"{opci('own_relex_c75_t500_fp32')}, but real step 400 minus real 500 is also {opci('own_rlvr_400')}, so the "
-        f"gap is within checkpoint-to-checkpoint variation: no robust OOD advantage or deficit. "
-        f"[final_paired.txt, ood_paired.txt; PLAN L117-121]",
+        f"{fpci('own_twopoint25_c75_t500_fp32')}. Seed 1 (real 500 = {f2(O3('own3_rlvr_500'))}): RELEX "
+        f"{fpci3('own3_relex_c75_t500_fp32')}, raw LS {fpci3('own3_rawls_c75_t500_fp32')}, two-point "
+        f"{fpci3('own3_twopoint25_c75_t500_fp32')}; P5's score part holds on both seeds, but RELEX's lead is no "
+        f"longer significant. [PLAN L116, L142-145]",
+        f"The own-run MATH gain comes with a larger step, not a better direction: the RELEX c75→500 delta has "
+        f"{NORM_RATIO:.2f}x (seed 1: {NORM_RATIO3:.2f}x) the norm of the real step-500 delta, and its direction at the "
+        f"real per-tensor norm scores {f2(O('own_relexnorm_c75_t500_fp32'))}, {fpci('own_relexnorm_c75_t500_fp32')} "
+        f"versus real 500 (P10 fails; seed 1 {fpci3('own3_relexnorm_c75_t500_fp32')}, P10b holds). OOD macro mean: "
+        f"RELEX fp32 minus real 500 is {opci('own_relex_c75_t500_fp32')} (seed 1 "
+        f"{opci3('own3_relex_c75_t500_fp32')}), but seed-0 real 400 minus real 500 is also "
+        f"{opci('own_rlvr_400')}: no robust OOD effect. [PLAN L117-121, L146-147]",
         f"Qwen3-4B-Base (no coordinate scaling): released RELEX {f2(Q('relex-rlvr__RELEX-Qwen3-4B-Base'))} versus the "
         f"RLVR main branch {f2(Q('relex-rlvr__RLVR-Qwen3-4B-Base'))} (a late checkpoint, consistent with step 500): "
         f"-0.30 [-1.14, +0.56]. Here rank-1 helps: raw least squares is -3.46 [-4.40, -2.54] versus RLVR main. "
@@ -482,18 +527,20 @@ def build():
         f"mostly magnitude overshoot. [PLAN L90, L113; agent_evals]",
     ]))
     S.append(P("<b>Bottom line.</b> <i>Holds:</i> the released artefacts and the paper's reported scores reproduce, and "
-               "the method is what the authors' code computes. On Qwen3-4B, where the code applies no coordinate "
-               "scaling, RELEX from 75 steps is statistically indistinguishable from the late RLVR checkpoint at this "
-               "sample size (not proof of equivalence) and clearly beats raw least squares. On the own 1.5B fp32 run, "
-               "RELEX from 75 steps lands at or above real step 500 on MATH. "
+               "the method is what the authors' code computes. On Qwen3-4B (no coordinate scaling) RELEX from 75 "
+               "steps is statistically indistinguishable from the late RLVR checkpoint at this sample size (not proof "
+               "of equivalence) and clearly beats raw least squares. On both own 1.5B fp32 "
+               "runs, RELEX from 75 steps lands within 2 points of real step 500 on MATH "
+               f"({FP['own_relex_c75_t500_fp32'][0]}, {FPP3[('own3_relex_c75_t500_fp32', 'own3_rlvr_500')][0]}). "
                "<i>Does not hold as stated:</i> the 1.5B headline comparison sits at twice the branch-label "
-               "coordinate, and at the matched coordinate RELEX trails real RLVR by 2.0 points and does not beat "
-               "simple baselines; the rank-1/linearity statistics are what a random walk produces in bf16 and the "
-               "fp32 coefficient is not linear; on 1.5B, rank-1 is not consistently better than raw least squares or "
-               f"two-point at the matched horizon, and the own-run gain over real 500 depends on a step {NORM_RATIO:.1f}x "
-               f"larger than real training's (at matched norm the rank-1 direction is {FP['own_relexnorm_c75_t500_fp32'][0]} "
-               "points from real 500); extrapolation does not transfer to the agentic run beyond about 1.6x the fit window. <i>Open:</i> the second own math seed (running); how released branches map to "
-               "optimizer steps; multiplicity-adjusted inference; agentic results beyond one synthetic database family.",
+               "coordinate, and at the matched coordinate RELEX trails real RLVR by 2.0 points; the rank-1/linearity "
+               "statistics are what a random walk produces in bf16 and the fp32 coefficient is not linear; on 1.5B, "
+               "rank-1 does not beat raw least squares or two-point at the matched horizon (released and both own "
+               "seeds); the own-run lead over real 500 is not significant on seed 1 and on both seeds comes "
+               f"from a step over {int(min(NORM_RATIO, NORM_RATIO3))}x larger than real training's; no robust "
+               "OOD effect; extrapolation does not transfer to the agentic run beyond about 1.6x the fit window. "
+               "<i>Open:</i> more seeds; the branch-to-step mapping; multiplicity-adjusted inference; other "
+               "agentic task families.",
                "body"))
     S.append(PageBreak())
 
@@ -517,6 +564,22 @@ def build():
                "mathematically equivalent to TRL and was gradient-checked (Appendix). A hang in the authors' grader "
                "at step 61 led to a 120 s grading deadline per step and a restart from checkpoint-60. "
                "[PLAN L36-37, L69, L81, L85; train_grpo.py docstring]"))
+    S.append(H2("Own GRPO run (seed 1) and the grading-pool change"))
+    S.append(P("The replication run (q15_run3) uses the same recipe with --seed 1. A first seed-1 attempt (q15_run2) "
+               "crashed repeatedly with host-memory errors: the reward pool forked the whole trainer, so each of 24 "
+               "grading workers held about 7 GiB of commit-accountable memory on a node with strict overcommit. That "
+               "attempt was stopped at step ~125 and is not used. Before step 1 of q15_run3 the grading pool was "
+               "changed: a forkserver pool that preloads only a torch-free grading module (relex/grade_worker.py), 8 "
+               "workers instead of 24; the grader itself is unchanged. Seed 1's training rewards therefore come from a "
+               "different grading pool than seed 0's. [PLAN L123-133]"))
+    S.append(P("<b>Grader deadline.</b> The authors' grader runs its symbolic equivalence check in a child process "
+               "with a 1 s wall-clock deadline, which is load-sensitive: in a test with 24 workers on 8 CPUs, 13 of 2000 "
+               "recorded MATH answers with a correct symbolic form were wrongly scored 0. Seed 0 (and the stopped seed-1 attempt) graded training "
+               "rewards with 24 workers on 12 CPUs, so a small (&lt;1%) fraction of correct symbolic-form training "
+               "rewards may have been zeroed there; this cannot be measured retroactively because training completions "
+               "were not logged. Evaluations grade with 12 workers; the CPUs given to an evaluation step depended on the "
+               "launcher script (3, 12 or 14), and whether the deadline zeroed any evaluation answers was not tested. "
+               "[PLAN L130; train_grpo.py, eval_math.py, on_holder.sh, eval_worker.sh]"))
     S.append(H2("Evaluation"))
     S.append(P("MATH = TianHongZXY/MATH test, 5000 problems (not MATH-500). Qwen2.5-Math-1.5B: greedy, 4096 tokens. "
                "Qwen3-4B: the authors' Qwen3 decoding, sampled (T 0.7, top_p 0.8), 16K tokens, one sample per problem. "
@@ -526,7 +589,7 @@ def build():
                "interval). For the own run's OOD results, the paired difference of the macro mean over the five "
                "benchmarks (each avg@8) uses a problem-clustered bootstrap stratified by benchmark: the 8 samples of "
                "a problem stay together and each benchmark's problems are resampled within it (relex/ood_paired.py). "
-               "Intervals are exploratory and unadjusted except P5 and P10; no "
+               "Intervals are exploratory and unadjusted except P5, P10 and P10b; no "
                "intervals are computed for the released-model and Qwen3-4B OOD tables. "
                "[PLAN L4, L30, L104, L110, L116, L121]"))
     S.append(H2("Independent implementation check"))
@@ -656,7 +719,7 @@ def build():
                  "Sources as Table 4."))
 
     # ---------------------------------------------------------------- 6 own run
-    S.append(KeepTogether([H1("6. Own GRPO run (Qwen2.5-Math-1.5B, seed 0)"), fig(F3, 6.6, "Figure 3. Own run, MATH-5000. Real checkpoints at optimizer steps 25..500 versus RELEX "
+    S.append(KeepTogether([H1("6. Own GRPO runs (Qwen2.5-Math-1.5B, seed 0; seed-1 replication at the end)"), fig(F3, 6.6, "Figure 3. Own run, MATH-5000. Real checkpoints at optimizer steps 25..500 versus RELEX "
                  "fitted on steps 1-75 and evaluated at T = 100..500 and 1000, from fp32 deltas and from the same "
                  "deltas rounded to bf16. Sources: results/evals/q15_own/own_rlvr_*/ and own_relex_c75_t*_{fp32,bf16}/"
                  "math.json; PLAN L88, L103, L107, L114, L116.")]))
@@ -674,7 +737,7 @@ def build():
         rows.append([lab, f2(O(n)), fpci(n)])
     S.append(table(rows, [3.0, 0.8, 2.0]))
     S.append(CAP(f"Table 5. Final paired comparisons against real step 500 ({f2(O('own_rlvr_500'))}), n = 5000 problems. "
-                 "Source: logs/final_paired.txt in the data directory (differences and intervals), "
+                 "Source: results/final_paired.txt (differences and intervals), "
                  "results/evals/q15_own/*/math.json (scores); PLAN L116, L119. Only the first row (P5) and the "
                  "norm-matched row (P10) are pre-registered."))
     S.append(P(f"From 75 fp32 steps RELEX lands {FP['own_relex_c75_t500_fp32'][0].lstrip('+')} points above real step 500 on MATH, "
@@ -747,11 +810,13 @@ def build():
     t7b = table(rows, [2.2, 1.8, 1.0, 1.8])
     S.append(KeepTogether([t7b, CAP(f"Table 7b. Paired differences against real step 500 (MATH {f2(O('own_rlvr_500'))}, OOD macro mean "
                  f"{f2(ood_mean('own_rlvr_500'))}). MATH: problem-paired bootstrap over 5000 problems "
-                 "(logs/final_paired.txt). OOD: macro mean over five benchmarks, problem-clustered bootstrap stratified "
-                 "by benchmark (relex/ood_paired.py; logs/ood_paired.txt). All intervals unadjusted. PLAN L116, L119, L121.")]))
-    S.append(fig(F5, 6.6, "Figure 5. Own run: MATH-5000 (left) and OOD macro mean (right) along the RELEX c75 fp32 "
-                 "line (T = 100..500, and 1000) against the real checkpoints that have each evaluation; the star is "
-                 "the norm-matched control at T = 500. Sources: results/evals/q15_own/*/{math,ood}.json; PLAN L121."))
+                 "(results/final_paired.txt). OOD: macro mean over five benchmarks, problem-clustered bootstrap stratified "
+                 "by benchmark (relex/ood_paired.py; results/ood_paired.txt). All intervals unadjusted. PLAN L116, L119, L121.")]))
+    S.append(fig(F5, 6.6, "Figure 5. Own runs: MATH-5000 (left) and OOD macro mean (right) along the RELEX c75 fp32 "
+                 "line (seed 0: T = 100..500 and 1000; seed 1: T = 100, 200, 300, 500) against the real checkpoints "
+                 "that have each evaluation; stars are the norm-matched control at T = 500. Filled markers and solid "
+                 "lines: seed 0; hollow markers and dashed lines: seed 1 (see “Seed replication” below). Sources: "
+                 "results/evals/q15_own/*/ and q15_own3/*/{math,ood}.json; PLAN L121, L136-137, L147."))
     S.append(P("<b>OOD.</b> On the five OOD benchmarks the MATH ordering does not carry over: RELEX c75→500 fp32 is "
                f"{opci(rl)} versus real 500 (interval excludes zero) while it is above real 500 on MATH, and every "
                "75-step extrapolation to 500 has a negative point estimate. But real step 400 is also "
@@ -761,7 +826,84 @@ def build():
                f"({f2(ood_mean('own_relex_c75_t300_fp32'))}; {opci('own_relex_c75_t300_fp32')} versus real 500), "
                "while MATH keeps rising to T = 500. The norm-matched model, worse on MATH, is in between on OOD "
                f"({opci(nm)}). Conclusion: no robust OOD advantage or deficit for RELEX on this run; intervals are "
-               "unadjusted and from one seed. [PLAN L118, L120, L121]"))
+               "unadjusted (seed 1 below). [PLAN L118, L120, L121]"))
+
+    # ------------------------------------------------ 6c seed replication (seed 1, q15_run3)
+    rl3, nm3, r500_3 = "own3_relex_c75_t500_fp32", "own3_relexnorm_c75_t500_fp32", "own3_rlvr_500"
+    S.append(H2("Seed replication (seed 1)"))
+    S.append(P("A second 500-step run (q15_run3, --seed 1) repeats the seed-0 recipe with the changed grading pool "
+               "described in Section 2; the stopped attempt q15_run2 is not used. The 75-step predictors were built "
+               "from its own fp32 steps 1-75 and compared with its own real step 500 "
+               f"(MATH {f2(O3(r500_3))}, OOD macro mean {f2(OM3(r500_3))}). The weight-geometry and bf16-rounding "
+               "analyses (Section 5, Table 6) were done on seed 0 only. [PLAN L126-133, L136-137, L142-147]"))
+    # per-checkpoint scores side by side: (label, seed-0 name, seed-1 name)
+    s01 = [("real step 75", "own_rlvr_75", "own3_rlvr_75"), ("real step 100", "own_rlvr_100", "own3_rlvr_100"),
+           ("real step 200", "own_rlvr_200", "own3_rlvr_200"), ("real step 300", "own_rlvr_300", "own3_rlvr_300"),
+           ("real step 400", "own_rlvr_400", "own3_rlvr_400"), ("real step 475", "own_rlvr_475", "own3_rlvr_475"),
+           ("real step 500", "own_rlvr_500", "own3_rlvr_500")]
+    s01 += [(f"RELEX c75→{t}, fp32", f"own_relex_c75_t{t}_fp32", f"own3_relex_c75_t{t}_fp32")
+            for t in (100, 200, 300, 400, 500)]
+    s01 += [("raw per-weight LS c75→500, fp32", "own_rawls_c75_t500_fp32", "own3_rawls_c75_t500_fp32"),
+            ("two-point (25, 75)→500, fp32", "own_twopoint25_c75_t500_fp32", "own3_twopoint25_c75_t500_fp32"),
+            ("norm-matched RELEX c75→500, fp32", nm, nm3)]
+
+    def sc_(group, name, file, f):
+        return f2(f(name)) if has(group, name, file) else "-"
+    rows = [["Checkpoint", "MATH, seed 0", "MATH, seed 1", "OOD mean, seed 0", "OOD mean, seed 1"]]
+    for lab, a, b in s01:
+        rows.append([lab, sc_("q15_own", a, "math.json", O), sc_("q15_own3", b, "math.json", O3),
+                     sc_("q15_own", a, "ood.json", ood_mean), sc_("q15_own3", b, "ood.json", OM3)])
+    S.append(KeepTogether([table(rows, [2.5, 1.1, 1.1, 1.2, 1.2]), CAP(
+        "Table 7c. Seed 0 versus seed 1, MATH-5000 (greedy, 4K) and OOD macro mean of avg@8 over the five "
+        "benchmarks. A dash means the model was not built or not evaluated (seed-0 real step 75 has no OOD "
+        "evaluation; seed-1 RELEX was not built at T = 400). Sources: results/evals/q15_own/*/ and "
+        "q15_own3/*/{math,ood}.json; PLAN L136-137, L142, L147.")]))
+    gain0 = O("own_rlvr_500") - O("own_rlvr_75")
+    gain3 = O3(r500_3) - O3("own3_rlvr_75")
+    pred01 = [(x, y) for _, x, y in s01 if not x.startswith("own_rlvr") and x != nm and has("q15_own3", y, "math.json")]
+    mx01 = max(abs(O(x) - O3(y)) for x, y in pred01)
+    S.append(P(f"The 75-step predictors reproduce across seeds within {mx01:.2f} points on MATH (RELEX c75→500 "
+               f"{f2(O(rl))} vs {f2(O3(rl3))}; raw least squares {f2(O('own_rawls_c75_t500_fp32'))} vs "
+               f"{f2(O3('own3_rawls_c75_t500_fp32'))}; two-point {f2(O('own_twopoint25_c75_t500_fp32'))} vs "
+               f"{f2(O3('own3_twopoint25_c75_t500_fp32'))}). The comparator moved more: seed 1's real step 500 is "
+               f"{O3(r500_3) - O('own_rlvr_500'):.2f} points above seed 0's, and its real 75→500 gain is "
+               f"{gain3:.2f} points versus {gain0:.2f}. Along the RELEX line the OOD mean again peaks near T = 300 "
+               f"({f2(OM3('own3_relex_c75_t300_fp32'))} on seed 1) rather than at 500. [PLAN L136-137, L142-145]"))
+    # paired step-500 comparisons, seed 0 next to seed 1
+    pr = [("RELEX c75→500, fp32 (P5)", "own_relex_c75_t500_fp32", rl3),
+          ("raw per-weight LS c75→500, fp32", "own_rawls_c75_t500_fp32", "own3_rawls_c75_t500_fp32"),
+          ("two-point (25, 75)→500, fp32", "own_twopoint25_c75_t500_fp32", "own3_twopoint25_c75_t500_fp32"),
+          ("RELEX c75→300, fp32", "own_relex_c75_t300_fp32", "own3_relex_c75_t300_fp32"),
+          ("real step 475", "own_rlvr_475", "own3_rlvr_475"),
+          ("real step 75", "own_rlvr_75", "own3_rlvr_75"),
+          ("norm-matched RELEX c75→500 (P10 / P10b)", nm, nm3)]
+    nc = "not computed"
+    rows = [["Minus real step 500 of the same seed", "MATH, seed 0", "MATH, seed 1", "OOD, seed 0", "OOD, seed 1"]]
+    for lab, a, b in pr:
+        rows.append([lab, fpci(a) if (a, "own_rlvr_500") in FPP else nc,
+                     fpci3(b) if (b, r500_3) in FPP3 else nc,
+                     opci(a) if a in OP else nc, opci3(b) if (b, r500_3) in OPP3 else nc])
+    rows.append(["norm-matched minus plain RELEX c75→500", fpci(nm, rl), fpci3(nm3, rl3), nc, nc])
+    S.append(KeepTogether([table(rows, [2.1, 1.25, 1.25, 1.25, 1.25]), CAP(
+        f"Table 7d. Paired differences against each seed's own real step 500 (seed 0: MATH {f2(O('own_rlvr_500'))}, "
+        f"OOD {f2(ood_mean('own_rlvr_500'))}; seed 1: MATH {f2(O3(r500_3))}, OOD {f2(OM3(r500_3))}). MATH: "
+        "problem-paired bootstrap, n = 5000; OOD: problem-clustered bootstrap stratified by benchmark. Unadjusted "
+        "except the P5, P10 and P10b rows. Sources: results/final_paired.txt, ood_paired.txt (seed 0), "
+        "final_paired_run3.txt (seed 1); PLAN L116, L119, L121, L142-147.")]))
+    S.append(P("<b>Conclusion.</b> P5's score part (within 2 points of real 500) holds on both seeds. RELEX's lead over "
+               f"real training shrinks from {fpci(rl)} on seed 0 to {fpci3(rl3)} on seed 1, which is not significant. "
+               "Raw least squares and two-point extrapolation match or beat RELEX on both seeds (point estimates; "
+               "their differences from RELEX were not tested). On OOD every 75-step extrapolation to 500 again has a "
+               f"negative point estimate (RELEX {opci3(rl3)} on seed 1), but the seed-1 intervals include zero and "
+               "on seed 0 nearby real checkpoints differ by similar amounts (real 400 vs 500): no robust OOD effect on either "
+               "seed."))
+    S.append(P("<b>P10b holds.</b> Pre-registered before its evaluation (PLAN L146): on seed 1 the norm-matched RELEX "
+               "lands below real 500, as on seed 0. The seed-1 plain RELEX c75→500 delta has "
+               f"{NORM_RATIO3:.2f}x the norm of the real step-500 delta (seed 0: {NORM_RATIO:.2f}x); at matched norm "
+               f"the model scores {f2(O3(nm3))}, {fpci3(nm3)} versus real 500 (seed 0: {fpci(nm)}) and "
+               f"{fpci3(nm3, rl3)} versus plain RELEX; on OOD it is {opci3(nm3)}. On both seeds the 75-step rank-1 "
+               "direction is less effective per unit norm than real training, and RELEX reaches the real-500 level "
+               "by taking a much larger step. [PLAN L146-147; final_paired_run3.txt]"))
 
     # ---------------------------------------------------------------- 7 qwen3-4b
     S.append(H1("7. Qwen3-4B-Base (released trajectory, no coordinate scaling)"))
@@ -872,8 +1014,9 @@ def build():
           ["P3", "RELEX c75 at index 500 lower than at 1000 but ≥ 68", "holds", "69.74 (2.0 below RLVR-500)", "L57"],
           ["P4", "At the far target rank-1 beats raw LS and rank-5 by ≥ 0.5; poly-3 < 20 by 400", "holds (at 1000)",
            "+2.14 / +2.04; poly-3 0.06 @400. Reverses at 500", "L59-60"],
-          ["P5", "Own fp32: median R² (1-125) > 0.95, and RELEX c75→500 within 2 of real 500", "fails (R² part); score part holds",
-           f"R² {G3['own32_75'][1]} @75, {G3['own32_125'][1]} @125; {fpci('own_relex_c75_t500_fp32')}", "L110, L116"],
+          ["P5", "Own fp32: median R² (1-125) > 0.95, and RELEX c75→500 within 2 of real 500", "fails (R² part); score part holds on both seeds",
+           f"R² {G3['own32_75'][1]} @75, {G3['own32_125'][1]} @125; {fpci('own_relex_c75_t500_fp32')}; seed 1: "
+           f"{fpci3('own3_relex_c75_t500_fp32')} (score part only)", "L110, L116, L143"],
           ["P6", "bf16 lowers EV, and fp32 shrinks the RELEX-minus-raw gap by ≥ 1 point", "fails (EV part holds)",
            f"EV {G3['own32_75'][0]} vs {G3['own16_75'][0]}; gap -0.18 vs -0.52", "L86, L88, L110"],
           ["P7", "Agent RELEX-pow c25→100 ≥ 90 on test", "fails (quick probe; full pending)", "10.7", "L99, L110"],
@@ -883,6 +1026,10 @@ def build():
           ["P10", "Own math: RELEX c75→500 direction at real step-500 per-tensor norm lands within 1.0 of real 500 "
            "and below plain RELEX", "fails (below plain RELEX, but not within 1.0)",
            f"{f2(O('own_relexnorm_c75_t500_fp32'))}; {fpci('own_relexnorm_c75_t500_fp32')} vs real 500", "L117, L119"],
+          ["P10b", "Seed 1: the same norm-matched RELEX c75→500 lands below its own real step 500 (the seed-0 "
+           "direction)", "holds",
+           f"{f2(O3('own3_relexnorm_c75_t500_fp32'))}; {fpci3('own3_relexnorm_c75_t500_fp32')} vs real 500; norm "
+           f"ratio {NORM_RATIO3:.2f} (seed 0 {NORM_RATIO:.2f})", "L146, L147"],
           ["A1", "Real agent step 100 beats base on test by ≥ 5", "holds", "94.5 vs 59.5 (+35)", "L90-92"],
           ["A2", "RELEX c25→100 gets ≥ half the gain and is within 3 of step 100", "fails", "11.2 vs 94.5", "L90-92"],
           ["A3", "RELEX c25→100 beats real step 25", "fails", "11.2 vs 90.8", "L90-92"],
@@ -891,15 +1038,27 @@ def build():
     S.append(table(sc, [0.35, 2.75, 1.25, 1.75, 0.75]))
     S.append(CAP("Table 11. Pre-registered predictions P1-P6 (2026-11-03 07:40 EST), A1-A4 (before any R3 run) and "
                  "P7-P9 (before their evaluations), scored as in the Codex Council review (PLAN L110); P10 registered "
-                 "2026-11-04 09:11 EST before its build and evaluation (PLAN L117). Source column: relex/PLAN.md line "
-                 "numbers."))
+                 "2026-11-04 09:11 EST before its build and evaluation (PLAN L117); P10b registered 2026-11-05 14:23 "
+                 "EST before its evaluation (PLAN L146). The P5 R² part was tested on seed 0 only. Source column: "
+                 "relex/PLAN.md line numbers."))
 
     # ---------------------------------------------------------------- 10 limitations
     S.append(H1("10. Limitations and open questions"))
     S.append(bullets([
-        "<b>One own math seed.</b> All own-run conclusions (Sections 5-6) rest on seed 0; a second seed (q15_run2, "
-        "--seed 1) is running. Real step 475 vs 500 already differs by 0.34 points.",
-        "<b>Exploratory, unadjusted intervals.</b> Dozens of paired comparisons were run; only the P5 and P10 "
+        "<b>Two own math seeds.</b> The MATH and OOD comparisons were repeated on seed 1 (q15_run3); the weight "
+        "geometry (Section 5) and the bf16-rounding results (Table 6) rest on seed 0 only. RELEX's lead over real "
+        f"500 moved from {FP['own_relex_c75_t500_fp32'][0]} to {FPP3[('own3_relex_c75_t500_fp32', 'own3_rlvr_500')][0]} "
+        "between the two seeds, so seed-to-seed variation is of the same size as the effects; two seeds do not "
+        "estimate it well.",
+        "<b>Grading differs between the seeds.</b> Seed 1 trained with a forkserver, torch-free grading pool of 8 "
+        "workers; seed 0 with a forked pool of 24 workers on 12 CPUs, under which the authors' 1 s symbolic-check "
+        "deadline may have zeroed a small (&lt;1%) fraction of correct training rewards; not measurable "
+        "retroactively (Section 2; PLAN L126-133).",
+        "<b>Raw deltas deleted.</b> After analysis the raw per-step deltas of seed 0, of both agent runs and of the "
+        "converted released trajectories were deleted from storage (scores, Gram matrices, built checkpoints and "
+        "evaluations are kept). Any new analysis that needs the deltas requires re-running training (own runs) "
+        "or re-downloading (released runs) (PLAN L140).",
+        "<b>Exploratory, unadjusted intervals.</b> Dozens of paired comparisons were run; only the P5, P10 and P10b "
         f"comparisons were pre-registered. Single intervals that barely exclude zero (e.g. "
         f"{fpci('own_relex_c75_t500_fp32')} on MATH, {opci('own_relex_c75_t500_fp32')} on OOD) should not be read as "
         "firm. Problem-clustered resampling is done for the own run's OOD evaluations (relex/ood_paired.py) but not "
