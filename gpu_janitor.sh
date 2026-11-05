@@ -6,7 +6,7 @@
 #  3. logs one status line per check: holders, time left, steps on each, idle ones.
 D=$DATA/relex; R=$HOME/ehz_agent/relex; XQ=$D/extra_queue.txt
 alive() { ps -u "$USER" -o cmd | grep -v grep | grep -qF -- "$1"; }
-holders() { squeue -a -u "$USER" -h -t R -o "%i %L %j %b" | awk '/B200_/ && /b200/ {print $1, $2}'; }
+holders() { squeue -a -u "$USER" -h -t R -o "%i %L %j %b" | awk '/B200_1gpu_auto/ && /b200/ {print $1, $2}'; }
 prev=""; last=0
 while true; do
   now=$(date +%s); cur=$(holders | awk '{print $1}' | sort | tr '\n' ' ')
