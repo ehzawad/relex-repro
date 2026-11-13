@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copy small result summaries (scores, weight-space stats, weight-match checks, training logs) from /scratch into
 # relex/results/ for the repo. Per-sample generations, deltas and checkpoints stay on /scratch.
-D=$DATA/relex; R=$HOME/ehz_agent/relex/results
+D=$HOME/ehz_agent/store/relex; R=$HOME/ehz_agent/relex/results
 mkdir -p $R/evals $R/agent_evals $R/weight_stats $R/train_logs
 for b in q15_released q15_own q15_own3 q4b_released; do
   for f in $D/evals/$b/*/*.json; do [ -f "$f" ] && { m=$(basename $(dirname $f)); mkdir -p $R/evals/$b/$m; cp $f $R/evals/$b/$m/; }; done

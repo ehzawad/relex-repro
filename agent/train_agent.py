@@ -8,6 +8,7 @@ state / guard), else 0. Tool results are masked from the loss by TRL. Deltas: fp
 
   python relex/agent/train_agent.py --out $SCRATCH/.../relex/agent/run1 [--smoke]
 """
+import os
 import argparse, json, sys, time
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def n_calls(prompts, completions, environments=None, **kw):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True); ap.add_argument("--model", default="Qwen/Qwen3.5-2B")
-    ap.add_argument("--tasks", default="$DATA/relex/agent/tasks_train.jsonl")
+    ap.add_argument("--tasks", default=os.path.expanduser("~/ehz_agent/store/relex/agent/tasks_train.jsonl"))
     ap.add_argument("--max-steps", type=int, default=100); ap.add_argument("--prompts", type=int, default=32)
     ap.add_argument("--group", type=int, default=8); ap.add_argument("--micro", type=int, default=8)
     ap.add_argument("--max-completion", type=int, default=4096); ap.add_argument("--max-turns", type=int, default=10)

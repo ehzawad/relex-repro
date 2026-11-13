@@ -60,7 +60,7 @@ def _score(pair):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", required=True); ap.add_argument("--bench", default="math", choices=["math", "ood", "math16k", "ood16k"])
-    ap.add_argument("--out", default="$DATA/relex/evals"); ap.add_argument("--limit", type=int)
+    ap.add_argument("--out", default=os.path.expanduser("~/ehz_agent/store/relex/evals")); ap.add_argument("--limit", type=int)
     ap.add_argument("--gpu-mem", type=float, default=0.85)
     a = ap.parse_args()
     from datasets import load_dataset

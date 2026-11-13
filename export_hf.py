@@ -11,14 +11,15 @@
                                          task files and the six synthetic SQLite databases.
 Paths and the cluster username are scrubbed from every text field.
 """
+import os
 import argparse, json, re, shutil
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-D = Path("$DATA/relex")
-SCRUB = [(re.compile(r"$DATA/relex/agent/dbs/"), "dbs/"),
+D = Path(os.path.expanduser("~/ehz_agent/store/relex"))
+SCRUB = [(re.compile(r"~/ehz_agent/store/relex/agent/dbs/"), "dbs/"),
          (re.compile(r"/(?:scratch|sfs|home|tmp)/[^\s\"'\\]*"), "<path>"), (re.compile(r"user"), "<user>")]
 TRAJ = {"q15_released": ("authors' released RLVR trajectory", "Qwen/Qwen2.5-Math-1.5B"),
         "q15_own": ("own GRPO run (TRL), fp32 deltas", "Qwen/Qwen2.5-Math-1.5B"),
@@ -105,7 +106,7 @@ def agent_traces(out):
                 g.write(json.dumps(t) + "\n")
     for f in (D / "agent/dbs").glob("*.db"):
         shutil.copy(f, out / "dbs" / f.name)
-    shutil.copy("$DATA/erpagent/logistics.db", out / "dbs/logistics_seed7.db")
+    shutil.copy(os.path.expanduser("~/ehz_agent/store/erpagent/logistics.db"), out / "dbs/logistics_seed7.db")
     for r in ["run1", "run2"]:
         if (D / f"agent/{r}/train_log.jsonl").exists():
             shutil.copy(D / f"agent/{r}/train_log.jsonl", out / f"training_logs/agent_{r}_grpo_per_step.jsonl")

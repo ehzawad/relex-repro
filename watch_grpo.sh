@@ -15,7 +15,7 @@ while [ ! -f "$OUT/DONE" ]; do
     done < <(squeue -a -u "$USER" -h -t R -o "%i %L %j %b" | awk '/B200_/ && /b200/ {print $1, $2}')
     if [ -n "$best" ]; then
       echo "$(date '+%F %T') starting relex_grpo on $best (${bestm} min left)"
-      RELEX_CPUS=12 "$R/on_holder.sh" "$best" grpo "python relex/train_grpo.py --out $OUT >> $DATA/relex/logs/grpo_run.log 2>&1"
+      RELEX_CPUS=12 "$R/on_holder.sh" "$best" grpo "python relex/train_grpo.py --out $OUT >> $HOME/ehz_agent/store/relex/logs/grpo_run.log 2>&1"
       sleep 120
     else
       echo "$(date '+%F %T') no free holder with >= $MIN_LEFT_MIN min"

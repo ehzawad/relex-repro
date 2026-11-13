@@ -7,6 +7,7 @@ than typed, so a table cannot drift from its source; intervals that exist only i
 
   python relex/report/build_report.py      (run on a compute node; needs reportlab + matplotlib)
 """
+import os
 import json, re, datetime
 from pathlib import Path
 
@@ -30,7 +31,7 @@ RELEX = HERE.parent
 RES = RELEX / "results"
 FIGS = HERE / "figs"
 OUT = HERE / "relex_findings.pdf"
-LOGS = Path("$DATA/relex/logs")
+LOGS = Path(os.path.expanduser("~/ehz_agent/store/relex/logs"))
 FINAL_PAIRED = RES / "final_paired.txt"          # seed 0, MATH (copied from the data directory by sync_results.sh)
 OOD_PAIRED = RES / "ood_paired.txt"              # seed 0, OOD
 FINAL_PAIRED3 = RES / "final_paired_run3.txt"    # seed 1 (q15_run3), MATH and OOD

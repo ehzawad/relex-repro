@@ -15,5 +15,5 @@
  "zwhe99/simplerl-OlympiadBench:truncated%": 4.09,
  "zwhe99/simplerl-OlympiadBench:mean_tokens": 920.0,
  "_seconds": 208,
- "_model": "$DATA/relex/own/q15_run3/ckpts/own3_relexnorm_c75_t500_fp32"
+ "_model": "~/ehz_agent/store/relex/own/q15_run3/ckpts/own3_relexnorm_c75_t500_fp32"
 }

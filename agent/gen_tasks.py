@@ -8,10 +8,11 @@ erpagent tasks with random entities. Each task row: {id, split, db, cat, questio
 Splits: train (DB seeds 101-104, 600 tasks each), dev (seed 201, 150 tasks; for choosing nothing but sanity),
 test (seed 301, 300 tasks), plus orig37 = the original erpagent tasks on the original DB (seed 7).
 """
+import os
 import argparse, json, random, sqlite3, sys
 from pathlib import Path
 
-sys.path.insert(0, "$HOME/ehz_agent/erpagent")
+sys.path.insert(0, os.path.expanduser("~/ehz_agent/erpagent"))
 import make_db  # noqa: E402
 
 CARRIERS = ["FastFreight", "BlueLine", "Coastal Express", "PrimeHaul"]
@@ -139,7 +140,7 @@ def make_split(split, seed, n, dbdir, rng):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--out", default="$DATA/relex/agent")
+    ap = argparse.ArgumentParser(); ap.add_argument("--out", default=os.path.expanduser("~/ehz_agent/store/relex/agent"))
     a = ap.parse_args(); out = Path(a.out); (out / "dbs").mkdir(parents=True, exist_ok=True)
     rng = random.Random(2026)
     plan = {"train": [(101, 600), (102, 600), (103, 600), (104, 600)], "dev": [(201, 150)], "test": [(301, 300)]}
@@ -149,10 +150,10 @@ def main():
             for t in rows:
                 f.write(json.dumps(t) + "\n")
         print(split, len(rows), {c: sum(t["cat"] == c for t in rows) for c in ["lookup", "aggregate", "insight", "write", "guard"]})
-    orig = [json.loads(l) for l in open("$DATA/erpagent/tasks.jsonl")]
+    orig = [json.loads(l) for l in open(os.path.expanduser("~/ehz_agent/store/erpagent/tasks.jsonl"))]
     with open(out / "tasks_orig37.jsonl", "w") as f:
         for t in orig:
-            f.write(json.dumps({**t, "split": "orig37", "db": "$DATA/erpagent/logistics.db"}) + "\n")
+            f.write(json.dumps({**t, "split": "orig37", "db": os.path.expanduser("~/ehz_agent/store/erpagent/logistics.db")}) + "\n")
 
 
 if __name__ == "__main__":

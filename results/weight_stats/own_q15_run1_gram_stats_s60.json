@@ -1,5 +1,5 @@
 {
- "$DATA/relex/own/q15_run1/grams_fp32_s60.pt": {
+ "~/ehz_agent/store/relex/own/q15_run1/grams_fp32_s60.pt": {
   "steps": [
    1,
    2,
@@ -380,7 +380,7 @@
    "rawls_c60": {}
   }
  },
- "$DATA/relex/own/q15_run1/grams_bf16_s60.pt": {
+ "~/ehz_agent/store/relex/own/q15_run1/grams_bf16_s60.pt": {
   "steps": [
    1,
    2,

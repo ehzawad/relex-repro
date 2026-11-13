@@ -15,5 +15,5 @@
  "zwhe99/simplerl-OlympiadBench:truncated%": 6.07,
  "zwhe99/simplerl-OlympiadBench:mean_tokens": 944.6,
  "_seconds": 233,
- "_model": "$DATA/relex/released/q15/ckpts/rlvr_500"
+ "_model": "~/ehz_agent/store/relex/released/q15/ckpts/rlvr_500"
 }

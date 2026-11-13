@@ -1,33 +1,33 @@
 {
- "$DATA/relex/released/q15/ckpts/relex_c75_t500": {
+ "~/ehz_agent/store/relex/released/q15/ckpts/relex_c75_t500": {
   "cos_median": 0.9988617367722034,
   "cos_p5": 0.9986479075615852,
   "frac_cos_gt_0.99": 1.0,
   "rel_l2": 0.5007395968888956,
   "norm_ratio": 0.5004237770704293
  },
- "$DATA/relex/released/q15/ckpts/relex_c75_t1000": {
+ "~/ehz_agent/store/relex/released/q15/ckpts/relex_c75_t1000": {
   "cos_median": 1.0,
   "cos_p5": 0.9999996826680326,
   "frac_cos_gt_0.99": 1.0,
   "rel_l2": 0.0017734545112824628,
   "norm_ratio": 0.9999611756570211
  },
- "$DATA/relex/released/q15/ckpts/relex_c75_t750": {
+ "~/ehz_agent/store/relex/released/q15/ckpts/relex_c75_t750": {
   "cos_median": 0.9994532860083822,
   "cos_p5": 0.9992947245779416,
   "frac_cos_gt_0.99": 1.0,
   "rel_l2": 0.2518802576146509,
   "norm_ratio": 0.7498252766508912
  },
- "$DATA/relex/released/q15/ckpts/relex_c75_t1500": {
+ "~/ehz_agent/store/relex/released/q15/ckpts/relex_c75_t1500": {
   "cos_median": 0.9996879379406874,
   "cos_p5": 0.9996025684101675,
   "frac_cos_gt_0.99": 1.0,
   "rel_l2": 0.5011321821588798,
   "norm_ratio": 1.5001644412113673
  },
- "$DATA/relex/released/q15/ckpts/rlvr_500": {
+ "~/ehz_agent/store/relex/released/q15/ckpts/rlvr_500": {
   "cos_median": 0.36529786529425035,
   "cos_p5": 0.20842270298933968,
   "frac_cos_gt_0.99": 0.05389221556886228,

@@ -1,4 +1,5 @@
 """Collect eval results: python relex/table.py [--evals $SCRATCH/.../relex/evals] [--prefix q15_] -> markdown on stdout."""
+import os
 import argparse, json
 from pathlib import Path
 
@@ -7,7 +8,7 @@ OOD = ["TianHongZXY/AIME2025", "MathArena/aime_2026", "MathArena/hmmt_feb_2025",
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--evals", default="$DATA/relex/evals"); ap.add_argument("--prefix", default="")
+    ap.add_argument("--evals", default=os.path.expanduser("~/ehz_agent/store/relex/evals")); ap.add_argument("--prefix", default="")
     a = ap.parse_args()
     rows = []
     for d in sorted(Path(a.evals).iterdir()):

@@ -3,5 +3,5 @@
  "TianHongZXY/MATH:truncated%": 1.96,
  "TianHongZXY/MATH:mean_tokens": 647.9,
  "_seconds": 114,
- "_model": "$DATA/relex/own/q15_run1/ckpts/own_rlvr_100"
+ "_model": "~/ehz_agent/store/relex/own/q15_run1/ckpts/own_rlvr_100"
 }

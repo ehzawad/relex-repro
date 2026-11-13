@@ -1,12 +1,12 @@
 {
- "$DATA/relex/released/q4b/ckpts/q4_relex_c75_t500": {
+ "~/ehz_agent/store/relex/released/q4b/ckpts/q4_relex_c75_t500": {
   "cos_median": 0.9999999578661412,
   "cos_p5": 0.9999991038280731,
   "frac_cos_gt_0.99": 1.0,
   "rel_l2": 0.0007549214255017956,
   "norm_ratio": 1.0000026497725578
  },
- "$DATA/relex/released/q4b/ckpts/q4_relex_c75_t250": {
+ "~/ehz_agent/store/relex/released/q4b/ckpts/q4_relex_c75_t250": {
   "cos_median": 0.9947430148986621,
   "cos_p5": 0.9941936446853005,
   "frac_cos_gt_0.99": 0.9826589595375722,

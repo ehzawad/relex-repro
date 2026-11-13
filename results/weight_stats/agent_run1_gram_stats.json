@@ -1,5 +1,5 @@
 {
- "$DATA/relex/agent/run1/grams_fp32.pt": {
+ "~/ehz_agent/store/relex/agent/run1/grams_fp32.pt": {
   "steps": [
    1,
    2,
@@ -412,7 +412,7 @@
    }
   }
  },
- "$DATA/relex/agent/run1/grams_bf16.pt": {
+ "~/ehz_agent/store/relex/agent/run1/grams_bf16.pt": {
   "steps": [
    1,
    2,

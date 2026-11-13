@@ -6,9 +6,10 @@ adjust_inventory, set_reorder_point. Each rollout gets a private in-memory copy 
 cached bytes), so writes never leak between rollouts. `grade` reuses erpagent's rubric (values in the answer text; write
 tasks on the final DB state with no other rows changed; guard tasks: no change and the expected mention).
 """
+import os
 import json, re, sqlite3, sys
 
-sys.path.insert(0, "$HOME/ehz_agent/erpagent")
+sys.path.insert(0, os.path.expanduser("~/ehz_agent/erpagent"))
 
 TABLES = ["suppliers", "products", "warehouses", "inventory", "customers", "orders", "order_items", "shipments"]
 STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled", "returned"]

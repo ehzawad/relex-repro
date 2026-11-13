@@ -3,7 +3,7 @@
 #   bash relex/agent/eval_harness.sh <model path or HF id> <name> [port]
 # Starts vLLM (Qwen3.5 tool + reasoning parsers, as in erpagent), waits, runs test 300 x 2 trials and orig37 x 3 trials
 # (unguarded tools, same as training), then stops the server. Results: $SCRATCH/.../relex/agent/evals/opencode__<name>[_orig37]/
-M=$1; N=$2; P=${3:-8141}; D=$DATA; A=$D/relex/agent; LOG=$D/relex/logs/vllm_$N.log
+M=$1; N=$2; P=${3:-8141}; D=$HOME/ehz_agent/store; A=$D/relex/agent; LOG=$D/relex/logs/vllm_$N.log
 export PYTHONNOUSERSITE=1 HF_HOME=$D/hf PATH=$D/envs/relex/bin:$D/envs/pt/bin:$PATH
 python -m vllm.entrypoints.cli.main serve "$M" --served-model-name "$N" --port $P --host 127.0.0.1 --trust-remote-code \
   --max-model-len 32768 --gpu-memory-utilization 0.85 --max-num-seqs 128 --enable-prefix-caching --enable-auto-tool-choice \

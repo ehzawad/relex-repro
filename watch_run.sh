@@ -14,7 +14,7 @@ while [ ! -f "$OUT/DONE" ]; do
     done < <(squeue -a -u "$USER" -h -t R -o "%i %L %j %b" | awk '/B200_1gpu_auto/ && /b200/ {print $1, $2}')
     if [ -n "$best" ]; then
       echo "$(date '+%F %T') starting relex_$TAG on $best (${bestm} min left)"
-      RELEX_CPUS=12 "$R/on_holder.sh" "$best" "$TAG" "python $SCRIPT --out $OUT $(cat $OUT/launch_args 2>/dev/null) >> $DATA/relex/logs/${TAG}_run.log 2>&1"
+      RELEX_CPUS=12 "$R/on_holder.sh" "$best" "$TAG" "python $SCRIPT --out $OUT $(cat $OUT/launch_args 2>/dev/null) >> $HOME/ehz_agent/store/relex/logs/${TAG}_run.log 2>&1"
       sleep 120
     fi
   fi
